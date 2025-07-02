@@ -1,5 +1,5 @@
 #!/bin/bash
-# DreamPi Portal Installer - Python 3.5 Compatible Version
+# DreamPi Portal Installer - MODIFIED FOR PYTHON 3.5 COMPATIBILITY
 
 set -e
 echo "🎮 Installing DreamPi Server Switcher Portal..."
@@ -26,20 +26,25 @@ fi
 
 echo "✅ Python3 found ($(python3 --version))"
 
-# Install Flask - compatible with Python 3.5
-echo "📦 Installing Flask..."
+# --- MODIFIED SECTION ---
+# Install Flask and Werkzeug versions compatible with Python 3.5
+FLASK_VERSION="Flask==1.1.4"
+WERKZEUG_VERSION="Werkzeug==1.0.1"
+
+echo "📦 Installing compatible Python packages ($FLASK_VERSION, $WERKZEUG_VERSION)..."
 if command -v pip3 &> /dev/null; then
-    echo "✅ pip3 found, installing Flask..."
-    pip3 install flask==2.0.3 werkzeug==2.0.3 || {
+    echo "✅ pip3 found, installing packages..."
+    pip3 install $FLASK_VERSION $WERKZEUG_VERSION || {
         echo "⚠️  pip3 failed, trying alternative..."
-        python3 -m pip install flask==2.0.3 werkzeug==2.0.3
+        python3 -m pip install $FLASK_VERSION $WERKZEUG_VERSION
     }
 else
     echo "⚠️  pip3 not found, installing pip for Python 3.5..."
     # Use Python 3.5 compatible get-pip
     curl -s https://bootstrap.pypa.io/pip/3.5/get-pip.py | python3
-    python3 -m pip install flask==2.0.3 werkzeug==2.0.3
+    python3 -m pip install $FLASK_VERSION $WERKZEUG_VERSION
 fi
+# --- END MODIFIED SECTION ---
 
 # Create installation directory
 PORTAL_DIR="/opt/dreampi-portal"
