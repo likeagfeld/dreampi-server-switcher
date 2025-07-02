@@ -1,5 +1,5 @@
 #!/bin/bash
-# DreamPi Portal Installer - No Repository Update Version
+# DreamPi Portal Installer - Python 3.5 Compatible Version
 
 set -e
 echo "🎮 Installing DreamPi Server Switcher Portal..."
@@ -18,27 +18,27 @@ fi
 
 echo "✅ DreamPi found"
 
-# Check if Python3 and pip are already installed (they should be on DreamPi)
+# Check if Python3 is installed
 if ! command -v python3 &> /dev/null; then
     echo "❌ Python3 not found. This is required for the portal."
     exit 1
 fi
 
-echo "✅ Python3 found"
+echo "✅ Python3 found ($(python3 --version))"
 
-# Try to install Flask without updating repositories
+# Install Flask - compatible with Python 3.5
 echo "📦 Installing Flask..."
 if command -v pip3 &> /dev/null; then
-    pip3 install flask || python3 -m pip install flask || {
-        echo "⚠️  pip3 not found, trying alternative method..."
-        # Try to install pip without apt
-        curl -s https://bootstrap.pypa.io/get-pip.py | python3
-        python3 -m pip install flask
+    echo "✅ pip3 found, installing Flask..."
+    pip3 install flask==2.0.3 werkzeug==2.0.3 || {
+        echo "⚠️  pip3 failed, trying alternative..."
+        python3 -m pip install flask==2.0.3 werkzeug==2.0.3
     }
 else
-    echo "⚠️  pip3 not found, downloading..."
-    curl -s https://bootstrap.pypa.io/get-pip.py | python3
-    python3 -m pip install flask
+    echo "⚠️  pip3 not found, installing pip for Python 3.5..."
+    # Use Python 3.5 compatible get-pip
+    curl -s https://bootstrap.pypa.io/pip/3.5/get-pip.py | python3
+    python3 -m pip install flask==2.0.3 werkzeug==2.0.3
 fi
 
 # Create installation directory
