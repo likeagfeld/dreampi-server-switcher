@@ -36,13 +36,11 @@ curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/
 
 ## Management
 
-``bash
 dreampi-portal start      # Start portal
 dreampi-portal stop       # Stop portal  
 dreampi-portal restart    # Restart portal
 dreampi-portal status     # Check status
 dreampi-portal logs       # View logs
-``
 
 ## License
 
