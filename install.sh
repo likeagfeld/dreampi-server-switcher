@@ -45,7 +45,7 @@ fi
 # Install Flask in portal directory only (isolated installation)
 echo "📦 Installing Flask (isolated from system)..."
 cd $PORTAL_DIR
-python3 -m pip install --target=$PORTAL_DIR --ignore-installed flask==2.0.3 werkzeug==2.0.3 Jinja2==3.0.3 click==8.0.4 itsdangerous==2.0.1 MarkupSafe==2.0.1
+python3 -m pip install --target=$PORTAL_DIR --ignore-installed flask==1.1.4 werkzeug==1.0.1 Jinja2==2.11.3 click==7.1.2 itsdangerous==1.1.0 MarkupSafe==1.1.1
 
 # Download portal files
 echo "📥 Downloading portal files..."
