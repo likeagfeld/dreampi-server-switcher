@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-DreamPi Server Switcher Portal - Simplified Safe Version
-Works with Python 3.5+ and minimal dependencies
+DreamPi Server Switcher Portal - Fixed Version
+Compatible with Python 3.5+ and preserves DreamPi's Python 2.7 requirement
 """
 
 from flask import Flask, render_template, jsonify
@@ -68,8 +68,15 @@ class DreamPiController:
                 with open(DREAMPI_ORIGINAL_BACKUP, 'r') as f:
                     content = f.read()
                 
-                # Add DCNet marker at the beginning
-                modified_content = "#!/usr/bin/env python3\n# DCNet Mode Enabled\nDCNET_MODE = True\n\n" + content
+                # Add DCNet marker WITHOUT changing the shebang
+                # Check if there's already a shebang line
+                lines = content.split('\n')
+                if lines and lines[0].startswith('#!'):
+                    # Keep the original shebang, add marker after it
+                    modified_content = lines[0] + '\n# DCNet Mode Enabled\nDCNET_MODE = True\n' + '\n'.join(lines[1:])
+                else:
+                    # No shebang, just add the marker
+                    modified_content = '# DCNet Mode Enabled\nDCNET_MODE = True\n\n' + content
                 
                 with open(DREAMPI_DCNET_BACKUP, 'w') as f:
                     f.write(modified_content)
@@ -140,6 +147,27 @@ class DreamPiController:
         except Exception as e:
             print("Error restarting service: {}".format(e))
             return False
+    
+    def check_dreampi_health(self):
+        """Check if DreamPi script exists and is valid"""
+        try:
+            if not os.path.exists(DREAMPI_SCRIPT):
+                return {'healthy': False, 'error': 'dreampi.py not found'}
+            
+            # Check if it's trying to use Python 3
+            with open(DREAMPI_SCRIPT, 'r') as f:
+                first_line = f.readline().strip()
+                if 'python3' in first_line:
+                    return {'healthy': False, 'error': 'dreampi.py is set to use Python 3 - needs Python 2.7'}
+            
+            # Check service status
+            status = self.get_service_status()
+            if not status['active']:
+                return {'healthy': False, 'error': 'DreamPi service not running'}
+            
+            return {'healthy': True, 'error': None}
+        except Exception as e:
+            return {'healthy': False, 'error': str(e)}
 
 # Initialize controller
 try:
@@ -154,9 +182,11 @@ except Exception as e:
 def index():
     """Main page"""
     if controller:
+        health = controller.check_dreampi_health()
         return render_template('index.html', 
                              current_server=controller.current_server,
-                             service_status=controller.get_service_status())
+                             service_status=controller.get_service_status(),
+                             health=health)
     else:
         return "Error: Controller not initialized", 500
 
@@ -166,7 +196,8 @@ def api_status():
     if controller:
         return jsonify({
             'current_server': controller.current_server,
-            'service_status': controller.get_service_status()
+            'service_status': controller.get_service_status(),
+            'health': controller.check_dreampi_health()
         })
     else:
         return jsonify({'error': 'Controller not initialized'}), 500
@@ -186,7 +217,8 @@ def api_switch(server):
     
     return jsonify({
         'success': success,
-        'current_server': controller.current_server
+        'current_server': controller.current_server,
+        'service_status': controller.get_service_status()
     })
 
 @app.route('/api/restart')
@@ -194,12 +226,38 @@ def api_restart():
     """Restart DreamPi service"""
     if controller:
         success = controller.restart_service()
-        return jsonify({'success': success})
+        return jsonify({
+            'success': success,
+            'service_status': controller.get_service_status()
+        })
     else:
         return jsonify({'success': False, 'error': 'Controller not initialized'}), 500
 
+@app.route('/api/repair')
+def api_repair():
+    """Attempt to repair DreamPi if it's broken"""
+    if not controller:
+        return jsonify({'success': False, 'error': 'Controller not initialized'}), 500
+    
+    try:
+        health = controller.check_dreampi_health()
+        if health['healthy']:
+            return jsonify({'success': True, 'message': 'DreamPi is already healthy'})
+        
+        # If dreampi.py is using Python 3, restore from backup
+        if 'Python 3' in health.get('error', ''):
+            if os.path.exists(DREAMPI_ORIGINAL_BACKUP):
+                shutil.copy2(DREAMPI_ORIGINAL_BACKUP, DREAMPI_SCRIPT)
+                subprocess.call(['sudo', 'systemctl', 'restart', 'dreampi'])
+                return jsonify({'success': True, 'message': 'Restored DreamPi from backup'})
+        
+        return jsonify({'success': False, 'error': 'Unable to auto-repair: ' + health.get('error', 'Unknown error')})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 if __name__ == '__main__':
     print("Starting DreamPi Portal on port 8080...")
+    print("IMPORTANT: DreamPi uses Python 2.7 - this portal will preserve that")
     try:
         app.run(host='0.0.0.0', port=8080, debug=False)
     except Exception as e:
