@@ -1,8 +1,8 @@
-# ?? DreamPi Server Switcher Portal
+# DreamPi Server Switcher Portal
 
 Beautiful web interface for switching between DCLive and DCNet servers on your DreamPi with one click.
 
-## ?? Quick Install
+## Quick Install
 
 ### One-Command Install
 ``bash
@@ -14,27 +14,27 @@ curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/
 curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/main/scripts/remote_install.sh | bash -s 192.168.1.100
 ``
 
-## ? Features
+## Features
 
-- ?? **One-click server switching** between DCLive and DCNet
-- ?? **Mobile-friendly** web interface
-- ? **Real-time monitoring** of DreamPi service
-- ?? **Authentic Dreamcast styling**
-- ?? **Auto-start on boot**
+- **One-click server switching** between DCLive and DCNet
+- **Mobile-friendly** web interface
+- **Real-time monitoring** of DreamPi service
+- **Authentic Dreamcast styling**
+- **Auto-start on boot**
 
-## ?? Usage
+## Usage
 
 1. Open `http://YOUR_PI_IP:8080` in browser
 2. Click server buttons to switch
 3. Monitor service status in real-time
 
-## ?? Requirements
+## Requirements
 
 - Raspberry Pi with DreamPi installed
 - SSH enabled on Pi
 - Network connection
 
-## ??? Management
+## Management
 
 ``bash
 dreampi-portal start      # Start portal
@@ -44,7 +44,7 @@ dreampi-portal status     # Check status
 dreampi-portal logs       # View logs
 ``
 
-## ?? License
+## License
 
 MIT License - see LICENSE file.
 
