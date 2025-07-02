@@ -1,8 +1,8 @@
 #!/bin/bash
-# DreamPi Portal Installer - Raspbian Stretch Compatible
+# DreamPi Portal Installer - No Repository Update Version
 
 set -e
-echo "🎮 Installing DreamPi Server Switcher Portal (Stretch Edition)..."
+echo "🎮 Installing DreamPi Server Switcher Portal..."
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
@@ -18,38 +18,32 @@ fi
 
 echo "✅ DreamPi found"
 
-# Fix repositories for Stretch
-echo "🔧 Fixing repositories for Raspbian Stretch..."
-cp /etc/apt/sources.list /etc/apt/sources.list.backup
-cat > /etc/apt/sources.list << 'EOF'
-deb http://legacy.raspbian.org/raspbian/ stretch main contrib non-free rpi
-EOF
+# Check if Python3 and pip are already installed (they should be on DreamPi)
+if ! command -v python3 &> /dev/null; then
+    echo "❌ Python3 not found. This is required for the portal."
+    exit 1
+fi
 
-# Update with legacy repos
-echo "📦 Installing dependencies..."
-apt-get update || true  # Continue even if some repos fail
-apt-get install -y python3 python3-pip python3-venv || {
-    # If that fails, try without venv
-    echo "⚠️  Trying alternative installation..."
-    apt-get install -y python3 python3-pip
-}
+echo "✅ Python3 found"
+
+# Try to install Flask without updating repositories
+echo "📦 Installing Flask..."
+if command -v pip3 &> /dev/null; then
+    pip3 install flask || python3 -m pip install flask || {
+        echo "⚠️  pip3 not found, trying alternative method..."
+        # Try to install pip without apt
+        curl -s https://bootstrap.pypa.io/get-pip.py | python3
+        python3 -m pip install flask
+    }
+else
+    echo "⚠️  pip3 not found, downloading..."
+    curl -s https://bootstrap.pypa.io/get-pip.py | python3
+    python3 -m pip install flask
+fi
 
 # Create installation directory
 PORTAL_DIR="/opt/dreampi-portal"
 mkdir -p $PORTAL_DIR/templates
-
-# Try to use venv, fall back to direct pip if it fails
-if command -v python3 -m venv >/dev/null 2>&1; then
-    echo "📦 Creating virtual environment..."
-    python3 -m venv /opt/dreampi-portal-venv
-    source /opt/dreampi-portal-venv/bin/activate
-    pip install flask
-    PYTHON_PATH="/opt/dreampi-portal-venv/bin/python"
-else
-    echo "📦 Installing Flask directly..."
-    pip3 install flask
-    PYTHON_PATH="/usr/bin/python3"
-fi
 
 # Download files
 echo "📥 Downloading portal files..."
@@ -59,7 +53,7 @@ chmod +x $PORTAL_DIR/dreampi_portal.py
 
 # Create systemd service
 echo "🔧 Setting up service..."
-cat > /etc/systemd/system/dreampi-portal.service << EOF
+cat > /etc/systemd/system/dreampi-portal.service << 'EOF'
 [Unit]
 Description=DreamPi Server Switcher Web Portal
 After=network.target
@@ -68,7 +62,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/dreampi-portal
-ExecStart=$PYTHON_PATH /opt/dreampi-portal/dreampi_portal.py
+ExecStart=/usr/bin/python3 /opt/dreampi-portal/dreampi_portal.py
 Restart=always
 RestartSec=10
 
@@ -91,9 +85,6 @@ esac
 CMDEOF
 
 chmod +x /usr/local/bin/dreampi-portal
-
-# Restore original sources.list
-cp /etc/apt/sources.list.backup /etc/apt/sources.list
 
 # Start service
 systemctl daemon-reload
