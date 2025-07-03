@@ -1,274 +1,206 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DreamPi Server Switcher</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
         body {
-            font-family: 'Orbitron', sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: linear-gradient(135deg, #001122 0%, #FF6600 100%);
-            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            background: #001122;
             color: white;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
         }
         .container {
-            max-width: 900px;
+            max-width: 600px;
             margin: 0 auto;
-            background: rgba(0, 17, 34, 0.85);
+            background: rgba(0, 0, 0, 0.8);
             padding: 30px;
-            border-radius: 20px;
-            border: 2px solid rgba(255, 102, 0, 0.3);
+            border-radius: 15px;
+            border: 2px solid #FF6600;
         }
-        .dreamcast-logo {
-            font-size: 3em;
-            font-weight: 900;
-            text-align: center;
-            background: linear-gradient(45deg, #FF6600, #0099FF);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: glow 2s ease-in-out infinite alternate;
-        }
-        .sega-logo {
-            font-size: 2em;
-            text-align: center;
-            color: #0099FF;
-            text-shadow: 0 0 20px #0099FF;
+        h1 {
+            color: #FF6600;
             margin-bottom: 30px;
         }
-        @keyframes glow {
-            from { text-shadow: 0 0 20px #FF6600; }
-            to { text-shadow: 0 0 30px #FF6600, 0 0 40px #0099FF; }
-        }
-        .status-card {
+        .status {
             background: rgba(255, 102, 0, 0.2);
             padding: 20px;
             border-radius: 10px;
             margin: 20px 0;
         }
-        .server-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+        .server-buttons {
+            display: flex;
             gap: 20px;
             margin: 30px 0;
-        }
-        .server-card {
-            background: rgba(0, 51, 102, 0.6);
-            padding: 25px;
-            border-radius: 15px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border: 2px solid transparent;
-        }
-        .server-card:hover { 
-            border-color: #FF6600; 
-            transform: translateY(-5px);
-        }
-        .server-card.active { 
-            border-color: #00FF88;
-            background: rgba(0, 255, 136, 0.2);
+            justify-content: center;
         }
         .btn {
-            padding: 15px 30px;
+            padding: 20px 40px;
             border: none;
-            border-radius: 25px;
+            border-radius: 10px;
+            font-size: 18px;
             font-weight: bold;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-family: 'Orbitron', sans-serif;
+            transition: all 0.3s;
+            color: white;
+            text-transform: uppercase;
         }
-        .btn-primary { background: linear-gradient(45deg, #00FF88, #00CC70); color: white; }
-        .btn-secondary { background: linear-gradient(45deg, #0099FF, #0077CC); color: white; }
-        .btn-warning { background: linear-gradient(45deg, #FF6600, #CC5200); color: white; }
-        .btn-info { background: linear-gradient(45deg, #9933FF, #7722CC); color: white; }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .controls { display: flex; gap: 15px; margin: 20px 0; flex-wrap: wrap; }
-        .controls .btn { flex: 1; min-width: 150px; }
-        .message { 
-            padding: 15px; 
-            margin: 15px 0; 
-            border-radius: 10px; 
-            text-align: center;
+        .btn-dclive {
+            background: #0099FF;
+        }
+        .btn-dcnet {
+            background: #00CC70;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .active {
+            box-shadow: 0 0 20px currentColor;
+        }
+        .message {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 10px;
             display: none;
         }
-        .message.success { background: rgba(0, 255, 136, 0.3); }
-        .message.error { background: rgba(255, 0, 0, 0.3); }
-        @media (max-width: 600px) {
-            .server-grid { grid-template-columns: 1fr; }
-            .controls { flex-direction: column; }
+        .message.success {
+            background: #00CC70;
+        }
+        .message.error {
+            background: #FF0000;
+        }
+        .loading {
+            display: none;
+            margin: 20px 0;
+            font-size: 20px;
+        }
+        .dreampi-status {
+            margin: 10px 0;
+        }
+        .status-active {
+            color: #00FF00;
+        }
+        .status-inactive {
+            color: #FF0000;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="dreamcast-logo">DREAMCAST</div>
-        <div class="sega-logo">SEGA</div>
-        <h1 style="text-align: center; margin: 0;">Server Switcher Portal</h1>
+        <h1>🎮 DreamPi Server Switcher</h1>
         
-        <div class="status-card">
-            <h3>System Status</h3>
-            <p>Service: <strong id="serviceStatus">{{ service_status.status.title() }}</strong></p>
-            <p>Current Server: <strong id="currentServer">{{ current_server.upper() }}</strong></p>
-        </div>
-
-        <div id="message" class="message"></div>
-
-        <div class="server-grid">
-            <div class="server-card {% if current_server == 'dclive' %}active{% endif %}" onclick="switchServer('dclive')">
-                <h3>DCLive</h3>
-                <p>Original Dreamcast Live Network</p>
-                <button class="btn btn-primary" id="dcliveBtn" {% if current_server == 'dclive' %}disabled{% endif %}>
-                    {% if current_server == 'dclive' %}Active{% else %}Switch{% endif %}
-                </button>
+        <div class="status">
+            <h3>Current Status</h3>
+            <div class="dreampi-status">
+                DreamPi Service: 
+                <span id="dreampiStatus" class="{% if dreampi_active %}status-active{% else %}status-inactive{% endif %}">
+                    {% if dreampi_active %}✅ Active{% else %}❌ Inactive{% endif %}
+                </span>
             </div>
-
-            <div class="server-card {% if current_server == 'dcnet' %}active{% endif %}" onclick="switchServer('dcnet')">
-                <h3>DCNet</h3>
-                <p>Flycast VPN Service</p>
-                <button class="btn btn-secondary" id="dcnetBtn" {% if current_server == 'dcnet' %}disabled{% endif %}>
-                    {% if current_server == 'dcnet' %}Active{% else %}Switch{% endif %}
-                </button>
+            <div>
+                Current Server: <strong id="currentServer">{{ current_server.upper() }}</strong>
             </div>
         </div>
 
-        <div class="controls">
-            <button class="btn btn-warning" onclick="restartService()">Restart Service</button>
-            <button class="btn btn-info" onclick="updateScripts()">Update Scripts</button>
-            <button class="btn btn-secondary" onclick="checkStatus()">Refresh Status</button>
+        <div class="loading" id="loading">
+            🔄 Switching servers, please wait...
         </div>
 
-        <div style="text-align: center; margin-top: 30px; opacity: 0.8;">
-            <p>DreamPi Portal v2.0 | SEGA Dreamcast Compatible</p>
+        <div class="message" id="message"></div>
+
+        <div class="server-buttons">
+            <button class="btn btn-dclive {% if current_server == 'dclive' %}active{% endif %}" 
+                    id="dcliveBtn" 
+                    onclick="switchServer('dclive')"
+                    {% if current_server == 'dclive' %}disabled{% endif %}>
+                DCLive
+            </button>
+            
+            <button class="btn btn-dcnet {% if current_server == 'dcnet' %}active{% endif %}" 
+                    id="dcnetBtn" 
+                    onclick="switchServer('dcnet')"
+                    {% if current_server == 'dcnet' %}disabled{% endif %}>
+                DCNet
+            </button>
+        </div>
+
+        <div style="margin-top: 40px; opacity: 0.7;">
+            <button class="btn" style="background: #666;" onclick="refreshStatus()">
+                🔄 Refresh Status
+            </button>
         </div>
     </div>
 
     <script>
-        let isSwitching = false;
+        let switching = false;
 
-        function showMessage(text, type = 'success') {
-            const msgEl = document.getElementById('message');
-            msgEl.textContent = text;
-            msgEl.className = 'message ' + type;
-            msgEl.style.display = 'block';
+        function showMessage(text, type) {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = 'message ' + type;
+            msg.style.display = 'block';
             setTimeout(() => {
-                msgEl.style.display = 'none';
+                msg.style.display = 'none';
             }, 5000);
         }
 
         async function switchServer(server) {
-            if (isSwitching) return;
+            if (switching) return;
             
-            const currentServer = document.getElementById('currentServer').textContent.toLowerCase();
-            if (currentServer === server) return;
-            
-            isSwitching = true;
-            const btn = document.getElementById(server + 'Btn');
-            btn.textContent = 'Switching...';
-            btn.disabled = true;
+            switching = true;
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('dcliveBtn').disabled = true;
+            document.getElementById('dcnetBtn').disabled = true;
 
             try {
-                const response = await fetch(`/api/switch/${server}`);
+                const response = await fetch('/api/switch/' + server);
                 const data = await response.json();
                 
                 if (data.success) {
-                    showMessage(`Successfully switched to ${server.toUpperCase()}!`);
+                    showMessage('✅ Successfully switched to ' + server.toUpperCase(), 'success');
                     setTimeout(() => location.reload(), 2000);
                 } else {
-                    showMessage(data.error || data.message || 'Switch failed', 'error');
-                    btn.textContent = 'Switch';
-                    btn.disabled = false;
-                    isSwitching = false;
+                    showMessage('❌ Switch failed: ' + (data.error || 'Unknown error'), 'error');
+                    console.error('Error details:', data);
                 }
             } catch (error) {
-                showMessage('Error: ' + error.message, 'error');
-                btn.textContent = 'Switch';
-                btn.disabled = false;
-                isSwitching = false;
-            }
-        }
-
-        async function restartService() {
-            const btn = event.target;
-            btn.textContent = 'Restarting...';
-            btn.disabled = true;
-
-            try {
-                const response = await fetch('/api/restart');
-                const data = await response.json();
-                
-                if (data.success) {
-                    showMessage('Service restarted successfully!');
-                    setTimeout(() => location.reload(), 2000);
-                } else {
-                    showMessage('Restart failed', 'error');
-                    btn.textContent = 'Restart Service';
-                    btn.disabled = false;
-                }
-            } catch (error) {
-                showMessage('Error: ' + error.message, 'error');
-                btn.textContent = 'Restart Service';
-                btn.disabled = false;
-            }
-        }
-
-        async function updateScripts() {
-            const btn = event.target;
-            btn.textContent = 'Updating...';
-            btn.disabled = true;
-
-            try {
-                const response = await fetch('/api/update-scripts');
-                const data = await response.json();
-                
-                if (data.success) {
-                    showMessage(data.message || 'Scripts updated successfully!');
-                } else {
-                    showMessage(data.message || 'Update failed', 'error');
-                }
-            } catch (error) {
-                showMessage('Error: ' + error.message, 'error');
+                showMessage('❌ Network error: ' + error.message, 'error');
             } finally {
-                btn.textContent = 'Update Scripts';
-                btn.disabled = false;
+                document.getElementById('loading').style.display = 'none';
+                switching = false;
+                refreshStatus();
             }
         }
 
-        async function checkStatus() {
+        async function refreshStatus() {
             try {
                 const response = await fetch('/api/status');
                 const data = await response.json();
                 
                 document.getElementById('currentServer').textContent = data.current_server.toUpperCase();
-                document.getElementById('serviceStatus').textContent = data.service_status.status.charAt(0).toUpperCase() + data.service_status.status.slice(1);
+                document.getElementById('dreampiStatus').textContent = data.dreampi_active ? '✅ Active' : '❌ Inactive';
+                document.getElementById('dreampiStatus').className = data.dreampi_active ? 'status-active' : 'status-inactive';
                 
                 // Update button states
-                document.getElementById('dcliveBtn').disabled = data.current_server === 'dclive';
-                document.getElementById('dcliveBtn').textContent = data.current_server === 'dclive' ? 'Active' : 'Switch';
-                document.getElementById('dcnetBtn').disabled = data.current_server === 'dcnet';
-                document.getElementById('dcnetBtn').textContent = data.current_server === 'dcnet' ? 'Active' : 'Switch';
+                document.getElementById('dcliveBtn').disabled = (data.current_server === 'dclive');
+                document.getElementById('dcnetBtn').disabled = (data.current_server === 'dcnet');
                 
-                // Update card active states
-                document.querySelectorAll('.server-card').forEach(card => {
-                    card.classList.remove('active');
-                });
-                if (data.current_server === 'dclive') {
-                    document.querySelector('[onclick="switchServer(\'dclive\')"]').classList.add('active');
-                } else if (data.current_server === 'dcnet') {
-                    document.querySelector('[onclick="switchServer(\'dcnet\')"]').classList.add('active');
-                }
-                
-                showMessage('Status updated');
+                // Update active class
+                document.getElementById('dcliveBtn').classList.toggle('active', data.current_server === 'dclive');
+                document.getElementById('dcnetBtn').classList.toggle('active', data.current_server === 'dcnet');
             } catch (error) {
-                showMessage('Error checking status', 'error');
+                console.error('Status refresh error:', error);
             }
         }
 
-        // Auto-refresh status every 30 seconds
-        setInterval(checkStatus, 30000);
+        // Auto-refresh every 10 seconds
+        setInterval(refreshStatus, 10000);
     </script>
 </body>
 </html>
