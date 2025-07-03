@@ -21,7 +21,7 @@ DREAMPI_BACKUP = os.path.join(DREAMPI_DIR, "dreampi_original.py")
 DCNET_V2_DIR = os.path.join(SCRIPTS_DIR, "DCNET_V2")
 # CORRECTED PATH: dcnet_on_off.sh is inside DCNET_V2 subdirectory
 DCNET_SCRIPT = os.path.join(DCNET_V2_DIR, "dcnet_on_off.sh")
-# Ensured no invisible characters on this line
+# Line ending explicitly set to LF to avoid ^M character issues
 DREAMPI_ORIGINAL = os.path.join(SCRIPTS_DIR, "dreampi.py")  # Original DCLive version
 
 
