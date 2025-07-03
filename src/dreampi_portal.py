@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-DreamPi Server Switcher Portal - With Auto-Update
-Uses existing DreamPi custom scripts and can update them from GitHub
+DreamPi Server Switcher Portal - Python 3.5 Compatible
+Works with old Python version on Raspbian Stretch
 """
 
 from flask import Flask, render_template, jsonify
@@ -11,186 +11,96 @@ import time
 
 app = Flask(__name__)
 
-# Configuration
+# Scripts location
 SCRIPTS_DIR = "/home/pi/dreampi_custom_scripts"
-SCRIPTS_REPO = "https://github.com/scrivanidc/dreampi_custom_scripts.git"
-SWITCH_DCLIVE_SCRIPT = os.path.join(SCRIPTS_DIR, "switch_to_dclive.sh")
-SWITCH_DCNET_SCRIPT = os.path.join(SCRIPTS_DIR, "switch_to_dcnet.sh")
 
-def update_scripts():
-    """Update custom scripts from GitHub"""
+def ensure_scripts():
+    """Make sure scripts exist and are executable"""
+    if not os.path.exists(SCRIPTS_DIR):
+        subprocess.run(['git', 'clone', 'https://github.com/scrivanidc/dreampi_custom_scripts.git', SCRIPTS_DIR])
+        subprocess.run(['chown', '-R', 'pi:pi', SCRIPTS_DIR])
+    
+    # Make all .sh files executable
     try:
-        if os.path.exists(SCRIPTS_DIR):
-            # Pull latest changes
-            result = subprocess.run(
-                ['git', 'pull'],
-                cwd=SCRIPTS_DIR,
-                capture_output=True,
-                text=True
-            )
-            if result.returncode == 0:
-                # Make scripts executable
-                subprocess.run(['chmod', '+x'] + [os.path.join(SCRIPTS_DIR, '*.sh')], shell=True)
-                return True, "Scripts updated successfully"
-            else:
-                return False, "Git pull failed: " + result.stderr
-        else:
-            # Clone repository
-            result = subprocess.run(
-                ['git', 'clone', SCRIPTS_REPO, SCRIPTS_DIR],
-                capture_output=True,
-                text=True
-            )
-            if result.returncode == 0:
-                subprocess.run(['chown', '-R', 'pi:pi', SCRIPTS_DIR])
-                subprocess.run(['chmod', '+x'] + [os.path.join(SCRIPTS_DIR, '*.sh')], shell=True)
-                return True, "Scripts downloaded successfully"
-            else:
-                return False, "Git clone failed: " + result.stderr
-    except Exception as e:
-        return False, str(e)
+        for file in os.listdir(SCRIPTS_DIR):
+            if file.endswith('.sh'):
+                os.chmod(os.path.join(SCRIPTS_DIR, file), 0o755)
+    except:
+        pass
 
 def get_current_server():
-    """Detect current server by checking dreampi.py content"""
+    """Simple detection - just check if dreampi.py contains dcnet"""
     try:
         with open("/home/pi/dreampi/dreampi.py", 'r') as f:
-            content = f.read()
-            if 'dcnet' in content.lower() or 'flycast' in content.lower():
+            content = f.read().lower()
+            if 'dcnet' in content or 'dc-net' in content:
                 return "dcnet"
         return "dclive"
     except:
         return "unknown"
 
-def get_service_status():
-    """Get dreampi service status"""
+def is_dreampi_active():
+    """Check if dreampi service is running"""
     try:
-        result = subprocess.run(['systemctl', 'is-active', 'dreampi'], 
-                              capture_output=True, text=True)
-        status = result.stdout.strip()
-        return {'active': status == 'active', 'status': status}
+        # Python 3.5 compatible way
+        proc = subprocess.Popen(['systemctl', 'is-active', 'dreampi'], 
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, _ = proc.communicate()
+        return stdout.decode('utf-8').strip() == 'active'
     except:
-        return {'active': False, 'status': 'error'}
-
-def run_script(script_path):
-    """Run a shell script with sudo"""
-    try:
-        # Update scripts before running
-        update_scripts()
-        
-        # Make sure script is executable
-        subprocess.run(['sudo', 'chmod', '+x', script_path])
-        
-        # Run the script
-        result = subprocess.run(['sudo', 'bash', script_path], 
-                              capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            return True, "Success"
-        else:
-            return False, result.stderr or "Script failed"
-    except Exception as e:
-        return False, str(e)
+        return False
 
 @app.route('/')
 def index():
-    """Main page"""
     return render_template('index.html', 
                          current_server=get_current_server(),
-                         service_status=get_service_status())
-
-@app.route('/api/status')
-def api_status():
-    """Get current status"""
-    return jsonify({
-        'current_server': get_current_server(),
-        'service_status': get_service_status(),
-        'scripts_exist': {
-            'dclive': os.path.exists(SWITCH_DCLIVE_SCRIPT),
-            'dcnet': os.path.exists(SWITCH_DCNET_SCRIPT)
-        }
-    })
+                         dreampi_active=is_dreampi_active())
 
 @app.route('/api/switch/<server>')
-def api_switch(server):
-    """Switch to specified server using existing scripts"""
+def switch_server(server):
+    """Switch server by running the appropriate script"""
+    ensure_scripts()
+    
     if server == 'dclive':
-        script_path = SWITCH_DCLIVE_SCRIPT
+        script = os.path.join(SCRIPTS_DIR, 'switch_to_dclive.sh')
     elif server == 'dcnet':
-        script_path = SWITCH_DCNET_SCRIPT
+        script = os.path.join(SCRIPTS_DIR, 'switch_to_dcnet.sh')
     else:
-        return jsonify({'success': False, 'error': 'Invalid server'}), 400
+        return jsonify({'success': False, 'error': 'Invalid server'})
     
-    # Check if scripts exist, if not try to update
-    if not os.path.exists(script_path):
-        update_success, update_msg = update_scripts()
-        if not update_success:
-            return jsonify({
-                'success': False,
-                'error': 'Scripts not found and update failed: ' + update_msg
-            }), 500
+    if not os.path.exists(script):
+        return jsonify({'success': False, 'error': 'Script not found'})
     
-    # Run the switch script
-    success, message = run_script(script_path)
-    
-    # Wait a moment for service to restart
-    time.sleep(3)
-    
-    return jsonify({
-        'success': success,
-        'message': message,
-        'current_server': get_current_server(),
-        'service_status': get_service_status()
-    })
-
-@app.route('/api/restart')
-def api_restart():
-    """Restart DreamPi service"""
     try:
-        subprocess.run(['sudo', 'systemctl', 'restart', 'dreampi'])
-        time.sleep(3)
+        # Run the script - Python 3.5 compatible
+        proc = subprocess.Popen(['sudo', 'bash', script],
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = proc.communicate()
+        
+        # Give it time to restart
+        time.sleep(5)
+        
+        # Check result
+        new_server = get_current_server()
+        dreampi_active = is_dreampi_active()
+        
         return jsonify({
-            'success': True,
-            'service_status': get_service_status()
+            'success': dreampi_active and new_server == server,
+            'current_server': new_server,
+            'dreampi_active': dreampi_active,
+            'output': stdout.decode('utf-8'),
+            'error': stderr.decode('utf-8')
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/update-scripts')
-def api_update_scripts():
-    """Manually update scripts from GitHub"""
-    success, message = update_scripts()
+@app.route('/api/status')
+def status():
     return jsonify({
-        'success': success,
-        'message': message,
-        'scripts_exist': {
-            'dclive': os.path.exists(SWITCH_DCLIVE_SCRIPT),
-            'dcnet': os.path.exists(SWITCH_DCNET_SCRIPT)
-        }
+        'current_server': get_current_server(),
+        'dreampi_active': is_dreampi_active()
     })
-
-@app.route('/api/check-scripts')
-def api_check_scripts():
-    """Check if required scripts exist"""
-    return jsonify({
-        'scripts_dir_exists': os.path.exists(SCRIPTS_DIR),
-        'dclive_script_exists': os.path.exists(SWITCH_DCLIVE_SCRIPT),
-        'dcnet_script_exists': os.path.exists(SWITCH_DCNET_SCRIPT),
-        'paths': {
-            'scripts_dir': SCRIPTS_DIR,
-            'dclive_script': SWITCH_DCLIVE_SCRIPT,
-            'dcnet_script': SWITCH_DCNET_SCRIPT
-        }
-    })
-
-# Initialize by updating scripts on startup
-print("DreamPi Portal starting...")
-print("Checking for custom scripts updates...")
-update_success, update_msg = update_scripts()
-if update_success:
-    print("✅ " + update_msg)
-else:
-    print("⚠️  " + update_msg)
 
 if __name__ == '__main__':
-    print("Portal ready on port 8080")
+    ensure_scripts()
     app.run(host='0.0.0.0', port=8080, debug=False)
