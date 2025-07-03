@@ -55,18 +55,18 @@ def create_backup():
 def run_interactive_script(script_path, script_input):
     """
     Runs an interactive shell script and provides input to it.
-    This version uses byte streams for more robust interaction.
+    This version uses byte streams and is compatible with older Python 3.
     script_path: The full path to the shell script.
     script_input: The string to be sent to the script's standard input.
     """
     try:
-        print(f"Attempting to run interactive script: {script_path}")
+        print("Attempting to run interactive script: {}".format(script_path))
         # Ensure the script is executable
         subprocess.run(['sudo', 'chmod', '+x', script_path], check=True)
         
         # Command to be executed
         command = ['sudo', 'bash', script_path]
-        print(f"Executing command: {' '.join(command)}")
+        print("Executing command: {}".format(' '.join(command)))
 
         # Run the script and pipe the input as bytes
         proc = subprocess.Popen(
@@ -77,29 +77,29 @@ def run_interactive_script(script_path, script_input):
         )
         
         # Encode input to bytes and send it. Add a timeout to prevent hangs.
-        input_bytes = f"{script_input}\n".encode('utf-8')
-        print(f"Sending input to script: {input_bytes!r}")
+        input_bytes = "{}\n".format(script_input).encode('utf-8')
+        print("Sending input to script: {!r}".format(input_bytes))
         stdout_bytes, stderr_bytes = proc.communicate(input=input_bytes, timeout=15)
         
         # Decode output for logging
         stdout = stdout_bytes.decode('utf-8', errors='ignore')
         stderr = stderr_bytes.decode('utf-8', errors='ignore')
 
-        print(f"Script {os.path.basename(script_path)} return code: {proc.returncode}")
-        print(f"Script {os.path.basename(script_path)} STDOUT:\n---\n{stdout}\n---")
+        print("Script {} return code: {}".format(os.path.basename(script_path), proc.returncode))
+        print("Script {} STDOUT:\n---\n{}\n---".format(os.path.basename(script_path), stdout))
         if stderr:
-            print(f"Script {os.path.basename(script_path)} STDERR:\n---\n{stderr}\n---")
+            print("Script {} STDERR:\n---\n{}\n---".format(os.path.basename(script_path), stderr))
         
-        return True # Assume success if it doesn't crash, as script might have odd return codes
+        return True # Assume success if it doesn't crash
     except subprocess.TimeoutExpired:
         proc.kill()
         stdout_bytes, stderr_bytes = proc.communicate()
         print("Error: Script timed out! It may be stuck waiting for input.")
-        print(f"STDOUT so far: {stdout_bytes.decode('utf-8', errors='ignore')}")
-        print(f"STDERR so far: {stderr_bytes.decode('utf-8', errors='ignore')}")
+        print("STDOUT so far: {}".format(stdout_bytes.decode('utf-8', errors='ignore')))
+        print("STDERR so far: {}".format(stderr_bytes.decode('utf-8', errors='ignore')))
         return False
     except Exception as e:
-        print(f"Failed to run interactive script {script_path}: {e}")
+        print("Failed to run interactive script {}: {}".format(script_path, e))
         return False
 
 @app.route('/')
