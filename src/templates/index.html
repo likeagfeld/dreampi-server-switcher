@@ -83,10 +83,20 @@
         .btn-primary { background: linear-gradient(45deg, #00FF88, #00CC70); color: white; }
         .btn-secondary { background: linear-gradient(45deg, #0099FF, #0077CC); color: white; }
         .btn-warning { background: linear-gradient(45deg, #FF6600, #CC5200); color: white; }
-        .btn:hover { transform: translateY(-2px); }
+        .btn-info { background: linear-gradient(45deg, #9933FF, #7722CC); color: white; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
         .btn:disabled { opacity: 0.6; cursor: not-allowed; }
         .controls { display: flex; gap: 15px; margin: 20px 0; flex-wrap: wrap; }
         .controls .btn { flex: 1; min-width: 150px; }
+        .message { 
+            padding: 15px; 
+            margin: 15px 0; 
+            border-radius: 10px; 
+            text-align: center;
+            display: none;
+        }
+        .message.success { background: rgba(0, 255, 136, 0.3); }
+        .message.error { background: rgba(255, 0, 0, 0.3); }
         @media (max-width: 600px) {
             .server-grid { grid-template-columns: 1fr; }
             .controls { flex-direction: column; }
@@ -101,9 +111,11 @@
         
         <div class="status-card">
             <h3>System Status</h3>
-            <p>Service: <strong>{{ service_status.status.title() }}</strong></p>
-            <p>Current Server: <strong>{{ current_server.upper() }}</strong></p>
+            <p>Service: <strong id="serviceStatus">{{ service_status.status.title() }}</strong></p>
+            <p>Current Server: <strong id="currentServer">{{ current_server.upper() }}</strong></p>
         </div>
+
+        <div id="message" class="message"></div>
 
         <div class="server-grid">
             <div class="server-card {% if current_server == 'dclive' %}active{% endif %}" onclick="switchServer('dclive')">
@@ -116,7 +128,7 @@
 
             <div class="server-card {% if current_server == 'dcnet' %}active{% endif %}" onclick="switchServer('dcnet')">
                 <h3>DCNet</h3>
-                <p>Flyinghead's VPN Service</p>
+                <p>Flycast VPN Service</p>
                 <button class="btn btn-secondary" id="dcnetBtn" {% if current_server == 'dcnet' %}disabled{% endif %}>
                     {% if current_server == 'dcnet' %}Active{% else %}Switch{% endif %}
                 </button>
@@ -125,8 +137,8 @@
 
         <div class="controls">
             <button class="btn btn-warning" onclick="restartService()">Restart Service</button>
-            <button class="btn btn-secondary" onclick="alert('Logs: sudo journalctl -u dreampi')">View Logs</button>
-            <button class="btn btn-primary" onclick="alert('Portal ready!')">Configuration</button>
+            <button class="btn btn-info" onclick="updateScripts()">Update Scripts</button>
+            <button class="btn btn-secondary" onclick="checkStatus()">Refresh Status</button>
         </div>
 
         <div style="text-align: center; margin-top: 30px; opacity: 0.8;">
@@ -135,11 +147,25 @@
     </div>
 
     <script>
-        let currentServer = '{{ current_server }}';
+        let isSwitching = false;
+
+        function showMessage(text, type = 'success') {
+            const msgEl = document.getElementById('message');
+            msgEl.textContent = text;
+            msgEl.className = 'message ' + type;
+            msgEl.style.display = 'block';
+            setTimeout(() => {
+                msgEl.style.display = 'none';
+            }, 5000);
+        }
 
         async function switchServer(server) {
+            if (isSwitching) return;
+            
+            const currentServer = document.getElementById('currentServer').textContent.toLowerCase();
             if (currentServer === server) return;
             
+            isSwitching = true;
             const btn = document.getElementById(server + 'Btn');
             btn.textContent = 'Switching...';
             btn.disabled = true;
@@ -149,37 +175,100 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    setTimeout(() => location.reload(), 1500);
+                    showMessage(`Successfully switched to ${server.toUpperCase()}!`);
+                    setTimeout(() => location.reload(), 2000);
                 } else {
-                    alert('Switch failed');
+                    showMessage(data.error || data.message || 'Switch failed', 'error');
                     btn.textContent = 'Switch';
                     btn.disabled = false;
+                    isSwitching = false;
                 }
             } catch (error) {
-                alert('Error: ' + error.message);
+                showMessage('Error: ' + error.message, 'error');
                 btn.textContent = 'Switch';
                 btn.disabled = false;
+                isSwitching = false;
             }
         }
 
         async function restartService() {
             const btn = event.target;
             btn.textContent = 'Restarting...';
+            btn.disabled = true;
 
             try {
                 const response = await fetch('/api/restart');
-                if (response.ok) {
-                    btn.textContent = 'Restarted!';
-                    setTimeout(() => {
-                        btn.textContent = 'Restart Service';
-                        location.reload();
-                    }, 1500);
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('Service restarted successfully!');
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    showMessage('Restart failed', 'error');
+                    btn.textContent = 'Restart Service';
+                    btn.disabled = false;
                 }
             } catch (error) {
-                alert('Restart failed');
+                showMessage('Error: ' + error.message, 'error');
                 btn.textContent = 'Restart Service';
+                btn.disabled = false;
             }
         }
+
+        async function updateScripts() {
+            const btn = event.target;
+            btn.textContent = 'Updating...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/update-scripts');
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage(data.message || 'Scripts updated successfully!');
+                } else {
+                    showMessage(data.message || 'Update failed', 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            } finally {
+                btn.textContent = 'Update Scripts';
+                btn.disabled = false;
+            }
+        }
+
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                document.getElementById('currentServer').textContent = data.current_server.toUpperCase();
+                document.getElementById('serviceStatus').textContent = data.service_status.status.charAt(0).toUpperCase() + data.service_status.status.slice(1);
+                
+                // Update button states
+                document.getElementById('dcliveBtn').disabled = data.current_server === 'dclive';
+                document.getElementById('dcliveBtn').textContent = data.current_server === 'dclive' ? 'Active' : 'Switch';
+                document.getElementById('dcnetBtn').disabled = data.current_server === 'dcnet';
+                document.getElementById('dcnetBtn').textContent = data.current_server === 'dcnet' ? 'Active' : 'Switch';
+                
+                // Update card active states
+                document.querySelectorAll('.server-card').forEach(card => {
+                    card.classList.remove('active');
+                });
+                if (data.current_server === 'dclive') {
+                    document.querySelector('[onclick="switchServer(\'dclive\')"]').classList.add('active');
+                } else if (data.current_server === 'dcnet') {
+                    document.querySelector('[onclick="switchServer(\'dcnet\')"]').classList.add('active');
+                }
+                
+                showMessage('Status updated');
+            } catch (error) {
+                showMessage('Error checking status', 'error');
+            }
+        }
+
+        // Auto-refresh status every 30 seconds
+        setInterval(checkStatus, 30000);
     </script>
 </body>
 </html>
