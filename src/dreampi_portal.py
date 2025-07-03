@@ -19,7 +19,6 @@ DREAMPI_BACKUP = os.path.join(DREAMPI_DIR, "dreampi_original.py")
 
 # --- Script files in the repository ---
 DCNET_V2_DIR = os.path.join(SCRIPTS_DIR, "DCNET_V2")
-# *** FIXED PATH ***: Point to the script inside the DCNET_V2 directory
 DCNET_SCRIPT = os.path.join(DCNET_V2_DIR, "dcnet_on_off.sh") 
 DREAMPI_ORIGINAL = os.path.join(SCRIPTS_DIR, "dreampi.py")  # Original DCLive version
 
@@ -49,10 +48,33 @@ def is_dreampi_active():
 def create_backup():
     """Create backup of original dreampi.py if it doesn't exist"""
     if not os.path.exists(DREAMPI_BACKUP):
-        # Only create a backup if the main dreampi.py exists
         if os.path.exists(DREAMPI_SCRIPT):
             shutil.copy2(DREAMPI_SCRIPT, DREAMPI_BACKUP)
             print("Created backup: {}".format(DREAMPI_BACKUP))
+
+def run_interactive_script(script_path, script_input):
+    """
+    Runs an interactive shell script and provides input to it.
+    script_path: The full path to the shell script.
+    script_input: The string to be sent to the script's standard input.
+    """
+    try:
+        # Ensure the script is executable
+        subprocess.run(['sudo', 'chmod', '+x', script_path], check=True)
+        
+        # Run the script and pipe the input
+        command = ['sudo', 'bash', script_path]
+        proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout, stderr = proc.communicate(input=f"{script_input}\n")
+        
+        print(f"Script {os.path.basename(script_path)} STDOUT:\n{stdout}")
+        if stderr:
+            print(f"Script {os.path.basename(script_path)} STDERR:\n{stderr}")
+        
+        return proc.returncode == 0
+    except Exception as e:
+        print(f"Failed to run interactive script {script_path}: {e}")
+        return False
 
 @app.route('/')
 def index():
@@ -72,21 +94,22 @@ def switch_server(server):
         time.sleep(2)
 
         if server == 'dclive':
-            # Switch to DCLive (original)
-            if os.path.exists(DREAMPI_BACKUP):
-                # Use our backup
+            # *** NEW LOGIC ***: Prefer using the script to turn DCNET off
+            if get_current_server() == 'dcnet' and os.path.exists(DCNET_SCRIPT):
+                print("Using dcnet_on_off.sh to switch to DCLive (Standard)...")
+                # Option "2" is DCNET Script OFF
+                run_interactive_script(DCNET_SCRIPT, "2")
+            # Fallback to original file copy method
+            elif os.path.exists(DREAMPI_BACKUP):
                 shutil.copy2(DREAMPI_BACKUP, DREAMPI_SCRIPT)
             elif os.path.exists(DREAMPI_ORIGINAL):
-                # Use the one from the repository
                 shutil.copy2(DREAMPI_ORIGINAL, DREAMPI_SCRIPT)
             else:
-                return jsonify({'success': False, 'error': 'No original dreampi.py found'})
+                return jsonify({'success': False, 'error': 'No original dreampi.py found to restore'})
 
         elif server == 'dcnet':
-            # Check if we have a DCNet version of dreampi.py
+            # Check for a specific dcnet python script first
             dcnet_v2_script_py = None
-            
-            # Look for dreampi.py in DCNET_V2 directory
             if os.path.exists(DCNET_V2_DIR):
                 for file in os.listdir(DCNET_V2_DIR):
                     if file == 'dreampi.py' or file.endswith('_dreampi.py'):
@@ -94,20 +117,20 @@ def switch_server(server):
                         break
             
             if dcnet_v2_script_py and os.path.exists(dcnet_v2_script_py):
-                # If a python script for dcnet exists, copy it
                 shutil.copy2(dcnet_v2_script_py, DREAMPI_SCRIPT)
+            # *** NEW LOGIC ***: Use the interactive script as the primary method
             elif os.path.exists(DCNET_SCRIPT):
-                # Otherwise, try running the dcnet_on_off.sh script from the correct path
-                # Make sure the script is executable first
-                subprocess.call(['sudo', 'chmod', '+x', DCNET_SCRIPT])
-                subprocess.call(['sudo', 'bash', DCNET_SCRIPT])
+                print("Using dcnet_on_off.sh to switch to DCNET...")
+                # Option "1" is DCNET Script ON
+                run_interactive_script(DCNET_SCRIPT, "1")
             else:
                 return jsonify({'success': False, 'error': 'No DCNet script (python or shell) found'})
         else:
             return jsonify({'success': False, 'error': 'Invalid server'})
 
         # Ensure correct permissions on the active dreampi.py
-        os.chmod(DREAMPI_SCRIPT, 0o755)
+        if os.path.exists(DREAMPI_SCRIPT):
+            os.chmod(DREAMPI_SCRIPT, 0o755)
 
         # Start DreamPi service
         subprocess.call(['sudo', 'systemctl', 'start', 'dreampi'])
@@ -138,7 +161,6 @@ def status():
         scripts['backup_exists'] = os.path.exists(DREAMPI_BACKUP)
         scripts['dcnet_v2_dir_exists'] = os.path.exists(DCNET_V2_DIR)
         
-        # Check what's in DCNET_V2
         if os.path.exists(DCNET_V2_DIR):
             scripts['dcnet_v2_files'] = os.listdir(DCNET_V2_DIR)
     
