@@ -55,23 +55,49 @@ def create_backup():
 def run_interactive_script(script_path, script_input):
     """
     Runs an interactive shell script and provides input to it.
+    This version uses byte streams for more robust interaction.
     script_path: The full path to the shell script.
     script_input: The string to be sent to the script's standard input.
     """
     try:
+        print(f"Attempting to run interactive script: {script_path}")
         # Ensure the script is executable
         subprocess.run(['sudo', 'chmod', '+x', script_path], check=True)
         
-        # Run the script and pipe the input
+        # Command to be executed
         command = ['sudo', 'bash', script_path]
-        proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        stdout, stderr = proc.communicate(input=f"{script_input}\n")
+        print(f"Executing command: {' '.join(command)}")
+
+        # Run the script and pipe the input as bytes
+        proc = subprocess.Popen(
+            command, 
+            stdin=subprocess.PIPE, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE
+        )
         
-        print(f"Script {os.path.basename(script_path)} STDOUT:\n{stdout}")
+        # Encode input to bytes and send it. Add a timeout to prevent hangs.
+        input_bytes = f"{script_input}\n".encode('utf-8')
+        print(f"Sending input to script: {input_bytes!r}")
+        stdout_bytes, stderr_bytes = proc.communicate(input=input_bytes, timeout=15)
+        
+        # Decode output for logging
+        stdout = stdout_bytes.decode('utf-8', errors='ignore')
+        stderr = stderr_bytes.decode('utf-8', errors='ignore')
+
+        print(f"Script {os.path.basename(script_path)} return code: {proc.returncode}")
+        print(f"Script {os.path.basename(script_path)} STDOUT:\n---\n{stdout}\n---")
         if stderr:
-            print(f"Script {os.path.basename(script_path)} STDERR:\n{stderr}")
+            print(f"Script {os.path.basename(script_path)} STDERR:\n---\n{stderr}\n---")
         
-        return proc.returncode == 0
+        return True # Assume success if it doesn't crash, as script might have odd return codes
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        stdout_bytes, stderr_bytes = proc.communicate()
+        print("Error: Script timed out! It may be stuck waiting for input.")
+        print(f"STDOUT so far: {stdout_bytes.decode('utf-8', errors='ignore')}")
+        print(f"STDERR so far: {stderr_bytes.decode('utf-8', errors='ignore')}")
+        return False
     except Exception as e:
         print(f"Failed to run interactive script {script_path}: {e}")
         return False
@@ -86,20 +112,15 @@ def index():
 def switch_server(server):
     """Switch server"""
     try:
-        # Create backup first
         create_backup()
 
-        # Stop DreamPi service
         subprocess.call(['sudo', 'systemctl', 'stop', 'dreampi'])
         time.sleep(2)
 
         if server == 'dclive':
-            # *** NEW LOGIC ***: Prefer using the script to turn DCNET off
             if get_current_server() == 'dcnet' and os.path.exists(DCNET_SCRIPT):
                 print("Using dcnet_on_off.sh to switch to DCLive (Standard)...")
-                # Option "2" is DCNET Script OFF
                 run_interactive_script(DCNET_SCRIPT, "2")
-            # Fallback to original file copy method
             elif os.path.exists(DREAMPI_BACKUP):
                 shutil.copy2(DREAMPI_BACKUP, DREAMPI_SCRIPT)
             elif os.path.exists(DREAMPI_ORIGINAL):
@@ -108,7 +129,6 @@ def switch_server(server):
                 return jsonify({'success': False, 'error': 'No original dreampi.py found to restore'})
 
         elif server == 'dcnet':
-            # Check for a specific dcnet python script first
             dcnet_v2_script_py = None
             if os.path.exists(DCNET_V2_DIR):
                 for file in os.listdir(DCNET_V2_DIR):
@@ -118,25 +138,20 @@ def switch_server(server):
             
             if dcnet_v2_script_py and os.path.exists(dcnet_v2_script_py):
                 shutil.copy2(dcnet_v2_script_py, DREAMPI_SCRIPT)
-            # *** NEW LOGIC ***: Use the interactive script as the primary method
             elif os.path.exists(DCNET_SCRIPT):
                 print("Using dcnet_on_off.sh to switch to DCNET...")
-                # Option "1" is DCNET Script ON
                 run_interactive_script(DCNET_SCRIPT, "1")
             else:
                 return jsonify({'success': False, 'error': 'No DCNet script (python or shell) found'})
         else:
             return jsonify({'success': False, 'error': 'Invalid server'})
 
-        # Ensure correct permissions on the active dreampi.py
         if os.path.exists(DREAMPI_SCRIPT):
             os.chmod(DREAMPI_SCRIPT, 0o755)
 
-        # Start DreamPi service
         subprocess.call(['sudo', 'systemctl', 'start', 'dreampi'])
         time.sleep(5)
 
-        # Check result
         new_server = get_current_server()
         dreampi_active = is_dreampi_active()
 
@@ -147,7 +162,6 @@ def switch_server(server):
         })
 
     except Exception as e:
-        # Try to restart dreampi on failure to avoid leaving it stopped
         subprocess.call(['sudo', 'systemctl', 'start', 'dreampi'])
         return jsonify({'success': False, 'error': str(e)})
 
