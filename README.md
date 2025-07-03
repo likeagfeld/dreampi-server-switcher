@@ -1,51 +1,155 @@
-# DreamPi Server Switcher Portal
+# 🎮 DreamPi Server Switcher Portal
 
-Beautiful web interface for switching between DCLive and DCNet servers on your DreamPi with one click.
+A beautiful web interface for switching between DCLive and DCNet servers on your DreamPi with one click.
 
-## Quick Install
+![Dreamcast Logo](https://img.shields.io/badge/SEGA-Dreamcast-FF6600?style=for-the-badge)
+![Python](https://img.shields.io/badge/Python-3.5+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-1.1.4-000000?style=for-the-badge&logo=flask&logoColor=white)
 
-### One-Command Install
-``bash
-curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/main/install.sh | sudo bash
-``
+## 🚀 Quick Install
 
-### Remote Install (from your PC)
-``bash
-curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/main/scripts/remote_install.sh | bash -s 192.168.1.100
-``
+One command installation:
 
-## Features
+```bash
+curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/master/install.sh | sudo bash
+```
 
-- **One-click server switching** between DCLive and DCNet
-- **Mobile-friendly** web interface
-- **Real-time monitoring** of DreamPi service
-- **Authentic Dreamcast styling**
-- **Auto-start on boot**
+## ✨ Features
 
-## Usage
+- **🔄 One-Click Server Switching** - Switch between DCLive and DCNet instantly
+- **📱 Mobile Friendly** - Beautiful responsive design works on any device
+- **🔍 Real-Time Status** - See current server and service status
+- **🎨 Dreamcast Themed** - Authentic Dreamcast orange and blue design
+- **🚦 Auto-Start** - Runs automatically on boot
+- **🔧 No Configuration** - Works out of the box
 
-1. Open `http://YOUR_PI_IP:8080` in browser
-2. Click server buttons to switch
-3. Monitor service status in real-time
-
-## Requirements
+## 📋 Requirements
 
 - Raspberry Pi with DreamPi installed
-- SSH enabled on Pi
+- Python 3.5+ (included in Raspbian)
 - Network connection
+- DreamPi custom scripts (auto-downloaded during install)
 
-## Management
+## 🖥️ Usage
 
-dreampi-portal start      # Start portal
-dreampi-portal stop       # Stop portal  
-dreampi-portal restart    # Restart portal
-dreampi-portal status     # Check status
-dreampi-portal logs       # View logs
+1. Open your browser and go to: `http://YOUR_PI_IP:8080`
+2. Current server status is shown at the top
+3. Click the button for the server you want to use
+4. Wait ~10 seconds for the switch to complete
+5. The page will refresh showing the new server
 
-## License
+## 🛠️ Management Commands
 
-MIT License - see LICENSE file.
+```bash
+# Check portal status
+sudo systemctl status dreampi-portal
+
+# View logs
+sudo journalctl -u dreampi-portal -f
+
+# Restart portal
+sudo systemctl restart dreampi-portal
+
+# Stop portal
+sudo systemctl stop dreampi-portal
+
+# Start portal
+sudo systemctl start dreampi-portal
+```
+
+## 📁 File Locations
+
+- Portal files: `/opt/dreampi-portal/`
+- Custom scripts: `/home/pi/dreampi_custom_scripts/`
+- DreamPi files: `/home/pi/dreampi/`
+- Service file: `/etc/systemd/system/dreampi-portal.service`
+
+## 🔧 How It Works
+
+The portal works by copying different versions of `dreampi.py`:
+
+- **DCLive Mode**: Uses the standard `dreampi.py`
+- **DCNet Mode**: Uses `dreampi_dcnet.py` which includes DCNet/Flycast support
+
+When you click a button, the portal:
+1. Stops the DreamPi service
+2. Copies the appropriate dreampi.py version
+3. Starts the DreamPi service
+4. Updates the display
+
+## 🆘 Troubleshooting
+
+### Portal won't start
+```bash
+# Check Python version (needs 3.5+)
+python3 --version
+
+# Check if Flask is installed
+python3 -m pip list | grep flask
+
+# Reinstall Flask if needed
+sudo python3 -m pip install flask==1.1.4
+```
+
+### Can't access the portal
+```bash
+# Check if it's running
+sudo systemctl status dreampi-portal
+
+# Check your Pi's IP
+hostname -I
+
+# Check if port 8080 is open
+sudo netstat -tlnp | grep 8080
+```
+
+### Server won't switch
+```bash
+# Check if scripts exist
+ls -la /home/pi/dreampi_custom_scripts/
+ls -la /home/pi/dreampi_custom_scripts/DCNET_V2/
+
+# Check DreamPi service
+sudo systemctl status dreampi
+
+# Try manual switch to test
+sudo systemctl stop dreampi
+sudo cp /home/pi/dreampi_custom_scripts/DCNET_V2/dreampi_dcnet.py /home/pi/dreampi/dreampi.py
+sudo systemctl start dreampi
+```
+
+## 🗑️ Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/master/uninstall.sh | sudo bash
+```
+
+## 🤝 Contributing
+
+Pull requests are welcome! Feel free to:
+- Add new features
+- Improve the UI
+- Fix bugs
+- Update documentation
+
+## 📜 License
+
+MIT License - See [LICENSE](LICENSE) file for details
+
+## 🙏 Credits
+
+- DreamPi Team for the amazing DreamPi software
+- [scrivanidc](https://github.com/scrivanidc) for the DCNet custom scripts
+- The Dreamcast community for keeping the dream alive!
+
+## 🌟 Support
+
+If you find this useful, please give it a star! ⭐
+
+For issues or questions:
+- Open an [issue](https://github.com/likeagfeld/dreampi-server-switcher/issues)
+- Join the Dreamcast community forums
 
 ---
 
-*Made for the Dreamcast community* ??
+*Made with ❤️ for the Dreamcast community*
