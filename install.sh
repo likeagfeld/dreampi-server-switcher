@@ -1,116 +1,78 @@
 #!/bin/bash
-# DreamPi Portal Installer - With Auto-Update Scripts
+# DreamPi Portal - Python 3.5 Compatible Installer
 
-echo "🎮 DreamPi Server Switcher Portal Installer"
+echo "🎮 Installing DreamPi Server Switcher Portal..."
 
-# Check if running as root
+# Must run as root
 if [ "$EUID" -ne 0 ]; then
-    echo "❌ Please run with sudo: sudo bash install.sh"
+    echo "❌ Run with sudo: sudo bash install.sh"
     exit 1
 fi
 
 # Check DreamPi exists
 if [ ! -f "/home/pi/dreampi/dreampi.py" ]; then
-    echo "❌ DreamPi not found at /home/pi/dreampi/dreampi.py"
+    echo "❌ DreamPi not found"
     exit 1
 fi
 
-echo "✅ DreamPi found"
+# Check Python version
+PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+echo "✅ Found Python $PYTHON_VERSION"
 
-# Install git if not present
+# Install git if needed
 if ! command -v git &> /dev/null; then
     echo "📦 Installing git..."
     apt-get update -qq
     apt-get install -y git
 fi
 
-# Get or update custom scripts
-echo "📥 Getting latest DreamPi custom scripts..."
-cd /home/pi
-
-if [ -d "dreampi_custom_scripts" ]; then
-    echo "📥 Updating existing scripts..."
-    cd dreampi_custom_scripts
-    # Reset any local changes and pull latest
-    git reset --hard HEAD
-    git pull origin main || git pull origin master
-    cd ..
-else
-    echo "📥 Downloading scripts..."
-    git clone https://github.com/scrivanidc/dreampi_custom_scripts.git
+# Install pip for Python 3.5 if needed
+if ! python3 -m pip --version &> /dev/null; then
+    echo "📦 Installing pip for Python 3.5..."
+    cd /tmp
+    curl -s https://bootstrap.pypa.io/pip/3.5/get-pip.py -o get-pip.py
+    python3 get-pip.py
 fi
 
-# Set permissions
+# Install Flask 1.1.4 (Python 3.5 compatible)
+echo "📦 Installing Flask..."
+python3 -m pip install flask==1.1.4 werkzeug==1.0.1
+
+# Get custom scripts
+echo "📥 Getting custom scripts..."
+cd /home/pi
+if [ ! -d "dreampi_custom_scripts" ]; then
+    git clone https://github.com/scrivanidc/dreampi_custom_scripts.git
+fi
 chown -R pi:pi dreampi_custom_scripts
 chmod +x dreampi_custom_scripts/*.sh
 
-echo "✅ Scripts ready"
+# Create portal
+echo "📥 Installing portal..."
+mkdir -p /opt/dreampi-portal/templates
 
-# Install Flask using pip that's already on the system
-echo "📦 Installing Flask..."
-pip3 install flask==1.1.4 || python3 -m pip install flask==1.1.4 || {
-    # If pip3 not found, try to get it
-    apt-get install -y python3-pip
-    pip3 install flask==1.1.4
-}
+# Download files
+curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/master/src/dreampi_portal.py > /opt/dreampi-portal/dreampi_portal.py
+curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/master/src/templates/index.html > /opt/dreampi-portal/templates/index.html
+chmod +x /opt/dreampi-portal/dreampi_portal.py
 
-# Create portal directory
-PORTAL_DIR="/opt/dreampi-portal"
-mkdir -p $PORTAL_DIR/templates
-
-# Download portal files
-echo "📥 Installing portal files..."
-curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/master/src/dreampi_portal.py > $PORTAL_DIR/dreampi_portal.py
-curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/master/src/templates/index.html > $PORTAL_DIR/templates/index.html
-chmod +x $PORTAL_DIR/dreampi_portal.py
-
-# Create systemd service
-echo "🔧 Creating service..."
-cat > /etc/systemd/system/dreampi-portal.service << 'EOF'
+# Create service
+cat > /etc/systemd/system/dreampi-portal.service << EOF
 [Unit]
-Description=DreamPi Server Switcher Portal
+Description=DreamPi Portal
 After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/dreampi-portal
 ExecStart=/usr/bin/python3 /opt/dreampi-portal/dreampi_portal.py
 Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Create update script
-echo "📝 Creating update script..."
-cat > /usr/local/bin/dreampi-portal-update << 'EOF'
-#!/bin/bash
-echo "🔄 Updating DreamPi Portal..."
-
-# Update portal files
-echo "📥 Updating portal..."
-curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/master/src/dreampi_portal.py > /opt/dreampi-portal/dreampi_portal.py
-curl -fsSL https://raw.githubusercontent.com/likeagfeld/dreampi-server-switcher/master/src/templates/index.html > /opt/dreampi-portal/templates/index.html
-
-# Update custom scripts
-echo "📥 Updating scripts..."
-cd /home/pi/dreampi_custom_scripts
-git pull
-
-# Restart portal
-echo "🔄 Restarting portal..."
-systemctl restart dreampi-portal
-
-echo "✅ Update complete!"
-EOF
-
-chmod +x /usr/local/bin/dreampi-portal-update
-
-# Enable and start service
+# Start service
 systemctl daemon-reload
 systemctl enable dreampi-portal
 systemctl start dreampi-portal
@@ -118,20 +80,19 @@ systemctl start dreampi-portal
 # Wait a moment
 sleep 3
 
-# Show status
-PI_IP=$(hostname -I | awk '{print $1}')
+# Done
+IP=$(hostname -I | awk '{print $1}')
 if systemctl is-active --quiet dreampi-portal; then
     echo ""
     echo "✅ Installation complete!"
-    echo "🌐 Portal URL: http://$PI_IP:8080"
+    echo "🌐 Access portal at: http://$IP:8080"
     echo ""
-    echo "📝 Commands:"
-    echo "  sudo systemctl status dreampi-portal     # Check status"
-    echo "  sudo journalctl -u dreampi-portal -f     # View logs"
-    echo "  sudo dreampi-portal-update               # Update everything"
+    echo "Commands:"
+    echo "  sudo systemctl status dreampi-portal"
+    echo "  sudo journalctl -u dreampi-portal -f"
 else
     echo ""
-    echo "⚠️  Portal may not be running. Check with:"
+    echo "⚠️ Portal may not have started. Check:"
     echo "  sudo systemctl status dreampi-portal"
     echo "  sudo journalctl -u dreampi-portal -n 50"
 fi
